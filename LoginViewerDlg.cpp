@@ -79,6 +79,11 @@ void CLoginViewerDlg::DoDataExchange(CDataExchange* pDX)
 {
 	CDialog::DoDataExchange(pDX);
 	//{{AFX_DATA_MAP(CLoginViewerDlg)
+	DDX_Control(pDX, IDOK, m_okbutton);
+	DDX_Control(pDX, IDCANCEL, m_cancelbutton);
+	DDX_Control(pDX, ID_HELP, m_helpbutton);
+	DDX_Control(pDX, IDC_CLEAR, m_clearbutton);
+	DDX_Control(pDX, IDC_REFRESHBUTTON, m_refreshbutton);
 	DDX_Control(pDX, IDC_PROGRESS, m_progressbar);
 	DDX_Control(pDX, IDC_LOGINLIST, m_listctrl);
 	//}}AFX_DATA_MAP
@@ -195,7 +200,12 @@ void CLoginViewerDlg::OnRefreshButton()
 	HCURSOR wait_pointer = LoadCursor(NULL, IDC_WAIT);
 	HCURSOR normal_pointer = LoadCursor(NULL, IDC_ARROW);
 	// Set cursor to a waiting cursor.
-	// XXX: Disable menus and buttons.
+	// XXX: Disable menus
+	m_okbutton.EnableWindow(FALSE);
+	m_refreshbutton.EnableWindow(FALSE);
+	m_cancelbutton.EnableWindow(FALSE);
+	m_helpbutton.EnableWindow(FALSE);
+	m_clearbutton.EnableWindow(FALSE);
 
 	SetCursor(wait_pointer);
 
@@ -221,6 +231,12 @@ void CLoginViewerDlg::OnRefreshButton()
 	}
 	m_progressbar.SetRange(0,100);
 	m_progressbar.SetPos(100);
+
+	m_okbutton.EnableWindow(TRUE);
+	m_refreshbutton.EnableWindow(TRUE);
+	m_cancelbutton.EnableWindow(TRUE);
+	// m_helpbutton.EnableWindow(TRUE);
+	m_clearbutton.EnableWindow(TRUE);
 
 	SetCursor(normal_pointer);
 	
@@ -639,14 +655,9 @@ BOOL CLoginViewerDlg::ReadSecurityLog()
 			}
 
 			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_IGNORE_INSERTS|FORMAT_MESSAGE_FROM_SYSTEM,
-					NULL,
-					error,
-					0,
-					(LPTSTR) &string,
-					0,
-					NULL);
-				::MessageBox(NULL, string, NULL, MB_OK);
-				LocalFree(string);
+					NULL,error,0,(LPTSTR) &string,0,NULL);
+			::MessageBox(NULL, string, NULL, MB_OK);
+			LocalFree(string);
 		} else {
 			PEVENTLOGRECORD el = (PEVENTLOGRECORD) buffer_pointer;
 			while((char *)el<((char *)buffer_pointer+bytes_read)) {
@@ -699,6 +710,8 @@ void CLoginViewerDlg::SetAllSubItems()
 			timestr = prefix + outby.Format("%Y-%m-%d %H:%M:%S");
 			m_listctrl.SetItemText(i,LOGOUTTIME, timestr);
 		} else {
+			// Display nothing
+			m_listctrl.SetItemText(i,LOGOUTTIME, "");
 //			m_listctrl.SetItemText(i,LOGOUTTIME, "<not logged>");
 		}
 
@@ -793,45 +806,6 @@ CLoginViewerDlg::CompareUserVisit(LPARAM lParam1, LPARAM lParam2, LPARAM lParamS
 			return 0;
 		}
 		
-		ASSERT(0);
-
-		// Shouldn't get here.
-
-		if(uv1->HasLogoutTime()) {
-			if(uv2->HasLogoutTime()) {
-				if(uv1->GetLogoutTime()<uv2->GetLogoutTime()) {
-					return -1;
-				} else if(uv1->GetLogoutTime()>uv2->GetLogoutTime()) {
-					return 1;
-				} else {
-					// Equal
-					return 0;
-				}
-			} else {
-				return 1;
-			}
-		} else if(uv2->HasLogoutTime()) {
-			return -1;
-		} else {
-			// No logouttime for anyone of the uservisits. Let's compare
-			// definitely last logout. This will not look nice.
-			if(uv1->HasDefinitelyOutBy() && uv2->HasDefinitelyOutBy()) {
-				if(uv1->GetDefinitelyOutBy()<uv2->GetDefinitelyOutBy()) {
-					return -1;
-				} else if(uv1->GetDefinitelyOutBy()>uv2->GetDefinitelyOutBy()) {
-					return 1;
-				} else {
-					// Equal shutdowns/startups
-					return 0;
-				}
-			} else if(uv1->HasDefinitelyOutBy()) {
-				return 1;
-			} else if(uv2->HasDefinitelyOutBy()) {
-				return -1;
-			} else {
-				return 0;
-			}
-		}
 		break;
 	case INTIME:
 		if(uv1->HasLoggedinTime()) {
@@ -858,10 +832,6 @@ CLoginViewerDlg::CompareUserVisit(LPARAM lParam1, LPARAM lParam2, LPARAM lParamS
 	}
 
 	return 0;
-/*    strItem1 = pListCtrl->GetItemText(lParam1, USER);
-    strItem2 = pListCtrl->GetItemText(lParam2, USER);
-    return strItem1.Compare(strItem2);
-	*/
 }
 
 void CLoginViewerDlg::OnSize(UINT nType, int cx, int cy) 
