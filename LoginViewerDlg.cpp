@@ -786,7 +786,7 @@ CLoginViewerDlg::CompareUserVisit(LPARAM lParam1, LPARAM lParam2, LPARAM lParamS
 		break;
 	case LOGOUTTIME:
 		// Note that if a logout time is specified, than there is also a
-		// definitely out by time.
+		// "definitely out by" time.
 		if(uv1->HasDefinitelyOutBy() && uv2->HasDefinitelyOutBy()) {
 				if(uv1->GetDefinitelyOutBy()<uv2->GetDefinitelyOutBy()) {
 					return -1;
@@ -808,22 +808,43 @@ CLoginViewerDlg::CompareUserVisit(LPARAM lParam1, LPARAM lParam2, LPARAM lParamS
 		
 		break;
 	case INTIME:
-		if(uv1->HasLoggedinTime()) {
-			if(uv2->HasLoggedinTime()) {
-				if(uv1->GetLoggedinTime()<uv2->GetLoggedinTime()) {
+		if(uv1->HasLoggedinTime() ||
+			(uv1->HasLoginTime() && uv1->HasDefinitelyOutBy())) {
+			// We can create a uv1 time
+			CTimeSpan uv1time;
+			if(uv1->HasLoggedinTime()) {
+				uv1time = uv1->GetLoggedinTime();
+			} else {
+				uv1time = uv1->GetDefinitelyOutBy()-uv1->GetLoginTime();
+			}
+			if(uv2->HasLoggedinTime() ||
+				(uv2->HasLoginTime() && uv2->HasDefinitelyOutBy())) {
+				// We can create a uv2 time
+				CTimeSpan uv2time;
+				if(uv2->HasLoggedinTime()) {
+					uv2time = uv2->GetLoggedinTime();
+				} else {
+					uv2time = uv2->GetDefinitelyOutBy()-uv2->GetLoginTime();
+				}
+
+				if(uv1time<uv2time) {
 					return -1;
-				} else if(uv1->GetLoggedinTime()>uv2->GetLoggedinTime()) {
+				} else if(uv1time>uv2time) {
 					return 1;
 				} else {
 					// Equal
 					return 0;
 				}
 			} else {
+				// Has a uv1time but no uv2time
 				return 1;
 			}
-		} else if(uv2->HasLoggedinTime()) {
+		} else if(uv2->HasLoggedinTime() ||
+				(uv2->HasLoginTime() && uv2->HasDefinitelyOutBy())) {
+				// We can create a uv2 time but have no uv1time
 			return -1;
 		} else {
+			// no times at all
 			return 0;
 		}
 		break;
