@@ -62,17 +62,14 @@ protected:
 	DECLARE_MESSAGE_MAP()
 private:
 	void CleanLists();
-	BOOL ReadSecurityLog();
 	BOOL ReadStartupShutdownLog();
-	void AnalyzeAndDisplay();
+	void AnalyzeAndDisplay(CTypedPtrList<CPtrList, CLoginLogout*> *loglist);
 	void AddToListControl(CUserVisit &a_uservisit);
 	void SetupListColumns();
 	void DisplaySecurityRecord(PEVENTLOGRECORD el);
 	void SetAllSubItems();
-	void ProcessSecurityRecord(PEVENTLOGRECORD el);
 	void ProcessSystemRecord(PEVENTLOGRECORD el);
 	static int CALLBACK CompareUserVisit(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
-	CTypedPtrList<CPtrList, CLoginLogout*> m_loglist;
 	CTypedPtrList<CPtrList, CUserVisit*> m_visitlist;
 	CTypedPtrList<CPtrList, CStartup*> m_startuplist;
 	CTypedPtrList<CPtrList, CShutdown*> m_shutdownlist;
