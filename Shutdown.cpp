@@ -1,0 +1,27 @@
+// Shutdown.cpp: implementation of the CShutdown class.
+//
+//////////////////////////////////////////////////////////////////////
+
+#include "stdafx.h"
+#include "LoginViewer.h"
+#include "Shutdown.h"
+
+#ifdef _DEBUG
+#undef THIS_FILE
+static char THIS_FILE[]=__FILE__;
+#define new DEBUG_NEW
+#endif
+
+//////////////////////////////////////////////////////////////////////
+// Construction/Destruction
+//////////////////////////////////////////////////////////////////////
+
+CShutdown::CShutdown()
+{
+
+}
+
+CShutdown::~CShutdown()
+{
+
+}
