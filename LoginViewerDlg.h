@@ -28,6 +28,11 @@ public:
 // Dialog Data
 	//{{AFX_DATA(CLoginViewerDlg)
 	enum { IDD = IDD_LOGINVIEWER_DIALOG };
+	CButton	m_okbutton;
+	CButton	m_cancelbutton;
+	CButton	m_helpbutton;
+	CButton	m_clearbutton;
+	CButton	m_refreshbutton;
 	CProgressCtrl	m_progressbar;
 	CListCtrl	m_listctrl;
 	//}}AFX_DATA
