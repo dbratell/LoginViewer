@@ -5,6 +5,7 @@
 #include "LoginViewer.h"
 #include "LoginViewerDlg.h"
 #include "EventLogReader.h"
+#include "LogAnalyzer.h"
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -73,7 +74,7 @@ CLoginViewerDlg::CLoginViewerDlg(CWnd* pParent /*=NULL*/)
 
 CLoginViewerDlg::~CLoginViewerDlg()
 {
-	CleanLists();
+	Cleanup();
 }
 
 void CLoginViewerDlg::DoDataExchange(CDataExchange* pDX)
@@ -215,7 +216,9 @@ void CLoginViewerDlg::OnRefreshButton()
 	// Progress 5%
 	m_progressbar.SetRange(0,100);
 	m_progressbar.SetPos(0);
-	ReadStartupShutdownLog();
+	CTypedPtrList<CPtrList, CStartup*> startuplist;
+	CTypedPtrList<CPtrList, CShutdown*> shutdownlist;
+	CEventLogReader::ReadStartupShutdownLog(startuplist,shutdownlist);
 	m_progressbar.SetPos(5);
 	
 	// Progress 5%
@@ -231,7 +234,7 @@ void CLoginViewerDlg::OnRefreshButton()
 		// Progress 90%
 		m_progressbar.SetRange32(0,loglist->GetCount()*10/9);
 		m_progressbar.SetPos(loglist->GetCount()/10);
-		AnalyzeAndDisplay(loglist);
+		AnalyzeAndDisplay(loglist,startuplist,shutdownlist);
 	}
 	m_progressbar.SetRange(0,100);
 
@@ -244,6 +247,20 @@ void CLoginViewerDlg::OnRefreshButton()
 			delete ll;
 		}
 		delete loglist;
+	}
+
+	CStartup *st;
+	while(!startuplist.IsEmpty()) {
+		st = startuplist.RemoveHead();
+		delete st;
+	}
+
+
+
+	CShutdown *sh;
+	while(!shutdownlist.IsEmpty()) {
+		sh = shutdownlist.RemoveHead();
+		delete sh;
 	}
 
 	m_progressbar.SetPos(100);
@@ -345,10 +362,12 @@ void CLoginViewerDlg::OnClear()
 	m_listctrl.DeleteAllItems();
 	m_progressbar.SetPos(0);
 
-	CleanLists();
+	Cleanup();
 }
 
-void CLoginViewerDlg::AnalyzeAndDisplay(CTypedPtrList<CPtrList, CLoginLogout*> *loglist)
+void CLoginViewerDlg::AnalyzeAndDisplay(CTypedPtrList<CPtrList, CLoginLogout*> *loglist,
+		CTypedPtrList<CPtrList, CStartup*> &startuplist,
+		CTypedPtrList<CPtrList, CShutdown*> &shutdownlist)
 {
 	// Analyze data
 
@@ -356,6 +375,8 @@ void CLoginViewerDlg::AnalyzeAndDisplay(CTypedPtrList<CPtrList, CLoginLogout*> *
 	  // need new login structure to save information in.
 
 	// XXX: BAD BAD n^2 algorithm
+
+	CLogAnalyzer::MakeVisitList(loglist,startuplist,shutdownlist,m_visitlist);
 
 	m_listctrl.LockWindowUpdate(); // To make the insertion a batch one
 
@@ -425,32 +446,32 @@ void CLoginViewerDlg::AnalyzeAndDisplay(CTypedPtrList<CPtrList, CLoginLogout*> *
 			POSITION p;
 			CTime closest;
 			BOOL found = FALSE;
-			p = m_shutdownlist.GetHeadPosition();
+			p = shutdownlist.GetHeadPosition();
 			while(NULL != p) {
-				if(m_shutdownlist.GetAt(p)->GetTime() > ll->GetTime()) {
-					closest = m_shutdownlist.GetAt(p)->GetTime();
+				if(shutdownlist.GetAt(p)->GetTime() > ll->GetTime()) {
+					closest = shutdownlist.GetAt(p)->GetTime();
 					found = TRUE;
 					break;
 				}
-				m_shutdownlist.GetNext(p);
+				shutdownlist.GetNext(p);
 			}
 
 			// If there was a crash there is no shutdown but a startup 
 			// closer then the shutdown.
-			p = m_startuplist.GetHeadPosition();
+			p = startuplist.GetHeadPosition();
 			while(NULL != p){
-				if((m_startuplist.GetAt(p)->GetTime() > ll->GetTime()) && 
+				if((startuplist.GetAt(p)->GetTime() > ll->GetTime()) && 
 					(!found || 
-						(m_startuplist.GetAt(p)->GetTime() < closest ))) {
-					closest = m_startuplist.GetAt(p)->GetTime();
+						(startuplist.GetAt(p)->GetTime() < closest ))) {
+					closest = startuplist.GetAt(p)->GetTime();
 					found = TRUE;
 				}
 
-				if(found && m_startuplist.GetAt(p)->GetTime() > closest) {
+				if(found && startuplist.GetAt(p)->GetTime() > closest) {
 					break;
 				}
 
-				m_startuplist.GetNext(p);
+				startuplist.GetNext(p);
 			}
 
 			if(found) {
@@ -667,145 +688,12 @@ void CLoginViewerDlg::OnSize(UINT nType, int cx, int cy)
 	
 }
 
-
-/**
- * Returns TRUE if it succeeded
- */
-BOOL CLoginViewerDlg::ReadStartupShutdownLog()
-{
-	BOOL rv;
-	DWORD bytes_read, buffer_size_required;
-	HANDLE eventlog;
-	LPVOID buffer_pointer;
-	DWORD buffer_size = 4*1024; // 4 KB
-
-	eventlog = OpenEventLog(NULL, "System");
-
-	if(!eventlog) {
-		MessageBox("Couldn't open the system event log.\nIt is in the system eventlog that logs startups and shutdowns. Do you have the rights to read that log?");
-		return FALSE;
-	}
-
-	// Get a buffer
-	buffer_pointer = new BYTE[buffer_size];
-	if(!buffer_pointer) {
-		MessageBox("Out of memory.\nTry to close a few programs and try again.");
-		return FALSE;
-	}
-
-	// Just to start the loop
-	rv = 1;
-	bytes_read = 1;
-	while(rv && bytes_read > 0) {
-		// Continue to read
-		rv = ::ReadEventLog(eventlog, 
-			EVENTLOG_SEQUENTIAL_READ|EVENTLOG_FORWARDS_READ, 0, buffer_pointer,
-			buffer_size, &bytes_read, &buffer_size_required);
-
-		if(!rv) {
-			DWORD error;
-			LPTSTR string;
-			error = GetLastError();
-			if(ERROR_HANDLE_EOF == error) {
-				break;
-			}
-
-			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_IGNORE_INSERTS|FORMAT_MESSAGE_FROM_SYSTEM,
-					NULL,error,0,(LPTSTR) &string,0,NULL);
-			::MessageBox(NULL, string, NULL, MB_OK);
-			LocalFree(string);
-		} else {
-			PEVENTLOGRECORD el = (PEVENTLOGRECORD) buffer_pointer;
-			while((char *)el<((char *)buffer_pointer+bytes_read)) {
-				ProcessSystemRecord(el);
-				el = (PEVENTLOGRECORD)(((char *)el) + el->Length);
-			}
-
-		}
-
-	}
-
-	CloseEventLog(eventlog);
-	eventlog = NULL;
-
-	delete buffer_pointer;
-	buffer_pointer = NULL;
-
-	return TRUE;
-
-}
-
-
-
-void CLoginViewerDlg::ProcessSystemRecord(PEVENTLOGRECORD el)
-{
-	PTCHAR sourcename;
-	CStartup *startup;
-	CShutdown *shutdown;
-
-	// Definition of event types?
-	// Definition of event ids?
-
-	if(el->EventType != EVENTLOG_INFORMATION_TYPE) {
-		// Nothing for us
-		return;
-	}
-
-	// A successful audit.
-
-	// Check if source is "EventLog"
-	sourcename = ((char *)&el->DataOffset) + sizeof(el->DataOffset);
-	if(strcmp(sourcename, "EventLog")) {
-		// Nope, nothing for us
-		return;
-	}
-
-//	TRACE("Eventlog, tjoho\n");
-	
-	DWORD eventid = el->EventID & 0x7FFF;
-
-	// Check EventID
-	switch(eventid) {
-	case 6005:
-		// Eventlog started
-		startup = new CStartup();
-//		ASSERT(el->TimeGenerated>0);
-//		startup->SetTime(el->TimeGenerated);
-		startup->SetTime(el->TimeWritten);
-		m_startuplist.AddTail(startup);
-		break;
-	case 6006:
-		shutdown = new CShutdown();
-//		ASSERT(el->TimeGenerated>0);
-//		shutdown->SetTime(el->TimeGenerated);
-		shutdown->SetTime(el->TimeWritten);
-		m_shutdownlist.AddTail(shutdown);
-		// Eventlog shutdown
-		break;
-	default: ;// nothing
-	}
-
-}
-
-void CLoginViewerDlg::CleanLists()
+void CLoginViewerDlg::Cleanup()
 {
 	CUserVisit *uv;
 	while(!m_visitlist.IsEmpty()) {
 		uv = m_visitlist.RemoveHead();
 		delete uv;
 	}
-
-	CStartup *st;
-	while(!m_startuplist.IsEmpty()) {
-		st = m_startuplist.RemoveHead();
-		delete st;
-	}
-
-	CShutdown *sh;
-	while(!m_shutdownlist.IsEmpty()) {
-		sh = m_shutdownlist.RemoveHead();
-		delete sh;
-	}
-
 
 }

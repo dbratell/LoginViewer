@@ -6,6 +6,8 @@
 #include "LoginViewer.h"
 #include "EventLogReader.h"
 #include "LoginLogout.h"
+#include "Startup.h"
+#include "Shutdown.h"
 
 #ifdef _DEBUG
 #undef THIS_FILE
@@ -248,4 +250,129 @@ void CEventLogReader::ProcessSecurityRecord(PEVENTLOGRECORD el,CTypedPtrList<CPt
 	}
 */	
 	
+}
+
+
+/**
+ * Returns TRUE if it succeeded
+ */
+BOOL CEventLogReader::ReadStartupShutdownLog(CTypedPtrList<CPtrList, CStartup*> &startuplist,
+		CTypedPtrList<CPtrList, CShutdown*> &shutdownlist)
+{
+	BOOL rv;
+	DWORD bytes_read, buffer_size_required;
+	HANDLE eventlog;
+	LPVOID buffer_pointer;
+	DWORD buffer_size = 4*1024; // 4 KB
+
+	eventlog = OpenEventLog(NULL, "System");
+
+	if(!eventlog) {
+		::MessageBox(NULL,
+			"Couldn't open the system event log.\nIt is in the system eventlog that logs startups and shutdowns. Do you have the rights to read that log?",
+			NULL,
+			MB_OK);
+		return FALSE;
+	}
+
+	// Get a buffer
+	buffer_pointer = new BYTE[buffer_size];
+	if(!buffer_pointer) {
+		::MessageBox(NULL,
+			"Out of memory.\nTry to close a few programs and try again.",
+			NULL,
+			MB_OK);
+		return FALSE;
+	}
+
+	// Just to start the loop
+	rv = 1;
+	bytes_read = 1;
+	while(rv && bytes_read > 0) {
+		// Continue to read
+		rv = ::ReadEventLog(eventlog, 
+			EVENTLOG_SEQUENTIAL_READ|EVENTLOG_FORWARDS_READ, 0, buffer_pointer,
+			buffer_size, &bytes_read, &buffer_size_required);
+
+		if(!rv) {
+			DWORD error;
+			LPTSTR string;
+			error = GetLastError();
+			if(ERROR_HANDLE_EOF == error) {
+				break;
+			}
+
+			FormatMessage(FORMAT_MESSAGE_ALLOCATE_BUFFER|FORMAT_MESSAGE_IGNORE_INSERTS|FORMAT_MESSAGE_FROM_SYSTEM,
+					NULL,error,0,(LPTSTR) &string,0,NULL);
+			::MessageBox(NULL, string, NULL, MB_OK);
+			LocalFree(string);
+		} else {
+			PEVENTLOGRECORD el = (PEVENTLOGRECORD) buffer_pointer;
+			while((char *)el<((char *)buffer_pointer+bytes_read)) {
+				ProcessSystemRecord(el,startuplist,shutdownlist);
+				el = (PEVENTLOGRECORD)(((char *)el) + el->Length);
+			}
+
+		}
+
+	}
+
+	CloseEventLog(eventlog);
+	eventlog = NULL;
+
+	delete buffer_pointer;
+	buffer_pointer = NULL;
+
+	return TRUE;
+
+}
+
+void CEventLogReader::ProcessSystemRecord(PEVENTLOGRECORD el,
+		CTypedPtrList<CPtrList, CStartup*> &startuplist,
+		CTypedPtrList<CPtrList, CShutdown*> &shutdownlist)
+{
+	PTCHAR sourcename;
+	CStartup *startup;
+	CShutdown *shutdown;
+
+	// Definition of event types?
+	// Definition of event ids?
+
+	if(el->EventType != EVENTLOG_INFORMATION_TYPE) {
+		// Nothing for us
+		return;
+	}
+
+	// A successful audit.
+
+	// Check if source is "EventLog"
+	sourcename = ((char *)&el->DataOffset) + sizeof(el->DataOffset);
+	if(strcmp(sourcename, "EventLog")) {
+		// Nope, nothing for us
+		return;
+	}
+
+	DWORD eventid = el->EventID & 0x7FFF;
+
+	// Check EventID
+	switch(eventid) {
+	case 6005:
+		// Eventlog started
+		startup = new CStartup();
+//		ASSERT(el->TimeGenerated>0);
+//		startup->SetTime(el->TimeGenerated);
+		startup->SetTime(el->TimeWritten);
+		startuplist.AddTail(startup);
+		break;
+	case 6006:
+		shutdown = new CShutdown();
+//		ASSERT(el->TimeGenerated>0);
+//		shutdown->SetTime(el->TimeGenerated);
+		shutdown->SetTime(el->TimeWritten);
+		shutdownlist.AddTail(shutdown);
+		// Eventlog shutdown
+		break;
+	default: ;// nothing
+	}
+
 }

@@ -10,14 +10,23 @@
 #endif // _MSC_VER > 1000
 
 #include "LoginLogout.h"
+#include "Startup.h"
+#include "Shutdown.h"
 
 class CEventLogReader  
 {
 public:
-	CTypedPtrList<CPtrList, CLoginLogout*> *ReadSecurityLog();
 	CEventLogReader();
+	static CTypedPtrList<CPtrList, CLoginLogout*> *ReadSecurityLog();
 	virtual ~CEventLogReader();
-	void ProcessSecurityRecord(PEVENTLOGRECORD el,CTypedPtrList<CPtrList, CLoginLogout*> *loglist);
+	static BOOL ReadStartupShutdownLog(CTypedPtrList<CPtrList, CStartup*> &startuplist,
+		CTypedPtrList<CPtrList, CShutdown*> &shutdownlist);
+private:
+	void Cleanup();
+	static void ProcessSecurityRecord(PEVENTLOGRECORD el,CTypedPtrList<CPtrList, CLoginLogout*> *loglist);
+	static void ProcessSystemRecord(PEVENTLOGRECORD el,
+		CTypedPtrList<CPtrList, CStartup*> &startuplist,
+		CTypedPtrList<CPtrList, CShutdown*> &shutdownlist);
 
 };
 

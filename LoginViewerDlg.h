@@ -61,18 +61,16 @@ protected:
 	//}}AFX_MSG
 	DECLARE_MESSAGE_MAP()
 private:
-	void CleanLists();
-	BOOL ReadStartupShutdownLog();
-	void AnalyzeAndDisplay(CTypedPtrList<CPtrList, CLoginLogout*> *loglist);
+	void Cleanup();
+	void AnalyzeAndDisplay(CTypedPtrList<CPtrList, CLoginLogout*> *loglist,
+		CTypedPtrList<CPtrList, CStartup*> &startuplist,
+		CTypedPtrList<CPtrList, CShutdown*> &shutdownlist);
 	void AddToListControl(CUserVisit &a_uservisit);
 	void SetupListColumns();
 	void DisplaySecurityRecord(PEVENTLOGRECORD el);
 	void SetAllSubItems();
-	void ProcessSystemRecord(PEVENTLOGRECORD el);
 	static int CALLBACK CompareUserVisit(LPARAM lParam1, LPARAM lParam2, LPARAM lParamSort);
 	CTypedPtrList<CPtrList, CUserVisit*> m_visitlist;
-	CTypedPtrList<CPtrList, CStartup*> m_startuplist;
-	CTypedPtrList<CPtrList, CShutdown*> m_shutdownlist;
 };
 
 //{{AFX_INSERT_LOCATION}}

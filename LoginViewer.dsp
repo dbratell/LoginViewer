@@ -126,6 +126,10 @@ SOURCE=.\EventLogReader.cpp
 # End Source File
 # Begin Source File
 
+SOURCE=.\LogAnalyzer.cpp
+# End Source File
+# Begin Source File
+
 SOURCE=.\LoginLogout.cpp
 # End Source File
 # Begin Source File
@@ -239,6 +243,10 @@ SOURCE=.\UserVisit.cpp
 # Begin Source File
 
 SOURCE=.\EventLogReader.h
+# End Source File
+# Begin Source File
+
+SOURCE=.\LogAnalyzer.h
 # End Source File
 # Begin Source File
 
